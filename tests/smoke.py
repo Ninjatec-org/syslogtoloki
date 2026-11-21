@@ -76,7 +76,8 @@ def main():
               "-config.file=/etc/loki/local-config.yaml", "-ingester.wal-enabled=false")
         loki_url = f"http://127.0.0.1:{host_port(loki, '3100/tcp')}"
         wait_for(lambda: http(loki_url + "/ready"))
-        start(alloy, "-p", "127.0.0.1::12345",
+        # Match the runner so bind-mounted state remains readable and removable.
+        start(alloy, "--user", f"{os.getuid()}:{os.getgid()}", "-p", "127.0.0.1::12345",
               "-v", f"{shared}:/var/log/remote:ro",
               "-v", f"{shared / 'state'}:/var/lib/alloy",
               "-v", f"{config}:/etc/alloy/config.alloy:ro",
