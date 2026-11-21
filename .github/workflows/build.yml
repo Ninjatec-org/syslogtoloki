@@ -1,0 +1,34 @@
+name: Build and publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and test pull request
+        if: github.event_name == 'pull_request'
+        run: make test
+
+      - name: Log into Docker Hub
+        if: github.event_name == 'push'
+        env:
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_PASS: ${{ secrets.DOCKER_PASS }}
+        run: printf '%s' "$DOCKER_PASS" | docker login --username "$DOCKER_USER" --password-stdin
+
+      - name: Build, test and publish
+        if: github.event_name == 'push'
+        run: make publish

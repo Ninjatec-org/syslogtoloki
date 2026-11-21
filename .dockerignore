@@ -1,5 +1,5 @@
 .git
-.circleci
+.github
 clusters
 tests
 __pycache__

@@ -12,7 +12,7 @@
 | `service.yaml` | External syslog LoadBalancer and Cilium/external-DNS configuration |
 | `kustomization.yaml` | Application resources and generated Alloy ConfigMap |
 | `Makefile` | Build, test and publish rsyslog 1.0.15 |
-| `.circleci/config.yml` | Tested image publication from main |
+| `.github/workflows/build.yml` | Build and test pull requests; tested Docker Hub publication from main |
 | `tests/test_rotation.py` | Archive retention and rotation failure regression tests |
 | `tests/smoke.py` | Disposable Docker pipeline test with real rsyslog, Alloy and Loki |
 

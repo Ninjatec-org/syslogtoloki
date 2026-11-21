@@ -29,7 +29,14 @@ kubectl apply -k .
 
 `make publish` builds `ninjatec/rsyslog:1.0.15`, runs the rotation tests and the Docker pipeline smoke test, then pushes the image. Use `make test` to build and test without pushing. The smoke test starts disposable rsyslog, Alloy and Loki containers on an isolated Docker network, sends TCP/RFC5424 and UDP/RFC3164 messages, checks Loki labels and JSON, then verifies read-position persistence after an Alloy restart.
 
-CircleCI performs the same tested publish on `main`. Its context must supply `DOCKER_USER` and `DOCKER_PASS`.
+GitHub Actions runs `make test` on pull requests targeting `main` and `make publish` on pushes to `main`. Both run the same build and pipeline checks; only pushes authenticate to Docker Hub and publish. The workflow is `.github/workflows/build.yml`.
+
+Before the first publish, add these repository secrets under **Settings → Secrets and variables → Actions**:
+
+- `DOCKER_USER`: the Docker Hub username with push access to `ninjatec/rsyslog`.
+- `DOCKER_PASS`: a Docker Hub access token with write permission for that repository.
+
+After the first successful GitHub Actions run, disable the old CircleCI project and remove its Docker credentials if they are no longer used elsewhere. If branch protection requires CircleCI checks, replace those requirements with the GitHub Actions `build` check so pull requests can merge.
 
 For the checked-in Flux bootstrap, `clusters/my-cluster/kustomization.yaml` includes a `syslogtoloki` Flux Kustomization that applies the root application manifests. Existing Flux installations can instead point their own Kustomization at the repository root. The `image-policy.yaml` and `image-update.yaml` examples remain disabled; image updates are not automatically committed. Update the rsyslog version in both `Makefile` and `deployment.yaml` when releasing.
 
