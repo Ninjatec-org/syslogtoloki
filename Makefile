@@ -1,9 +1,14 @@
-NAME := rsyslog
-VERSION := 1.0.14
+VERSION := 1.0.15
+IMAGE := ninjatec/rsyslog:$(VERSION)
+
+.PHONY: build test publish
 
 build:
-	DOCKER_BUILDKIT=1 docker build -t ninjatec/rsyslog:$(VERSION) .
+	DOCKER_BUILDKIT=1 docker build -t $(IMAGE) .
 
-publish:
-	docker tag ninjatec/rsyslog:$(VERSION) ninjatec/ninjatec/rsyslog:$(VERSION)
-	docker push ninjatec/rsyslog:$(VERSION)
+test: build
+	python3 -m unittest discover -s tests -v
+	RSYSLOG_IMAGE=$(IMAGE) python3 tests/smoke.py
+
+publish: test
+	docker push $(IMAGE)

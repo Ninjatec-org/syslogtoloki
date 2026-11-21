@@ -1,0 +1,48 @@
+logging {
+	level = "warn"
+}
+
+loki.source.file "syslog" {
+	// shortcut: archives require manual replay, add durable delivery if outage recovery must be automatic.
+	targets    = [{__path__ = "/var/log/remote/syslog.jsonl", job = "varlogs"}]
+	forward_to = [loki.process.syslog.receiver]
+
+	file_match {
+		enabled = true
+	}
+}
+
+loki.process "syslog" {
+	stage.json {
+		expressions = {
+			timestamp = "timestamp",
+			hostname  = "hostname",
+			appname   = "appname",
+			facility  = "facility",
+			severity  = "severity",
+		}
+	}
+
+	stage.timestamp {
+		source            = "timestamp"
+		format            = "RFC3339Nano"
+		action_on_failure = "skip"
+	}
+
+	stage.labels {
+		values = {
+			hostname = "",
+			appname  = "",
+			facility = "",
+			severity = "",
+		}
+	}
+
+	forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+	endpoint {
+		url = "http://grafana-loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+	}
+}

@@ -1,140 +1,44 @@
-# Project Inventory
+# Project inventory
 
-## Repository Structure
+## Active application
 
-```
-syslogtoloki/
-├── .circleci/
-│   └── config.yml                # CircleCI pipeline configuration
-├── configmap.yaml                # Grafana Agent configuration
-├── deployment.yaml               # RSyslog deployment and PVC
-├── Dockerfile                    # RSyslog container image
-├── kustomization.yaml            # Kustomize resources
-├── log_rotation.sh               # Log rotation script
-├── Makefile                      # Build and publish commands
-├── README.md                     # Project documentation
-├── service.yaml                  # LoadBalancer service
-└── inventory.md                  # This file
-```
+| File | Purpose |
+| --- | --- |
+| `Dockerfile` | Ubuntu 24.04 image containing rsyslog |
+| `rsyslog.conf` | TCP/UDP 514 inputs, JSON template, single file output and size-based rotation |
+| `log_rotation.sh` | Rename active logs and retain five archives |
+| `config.alloy` | File reader, JSON processing, event labels and Loki writer |
+| `deployment.yaml` | Single rsyslog/Alloy pod and the existing PVC definition |
+| `service.yaml` | External syslog LoadBalancer and Cilium/external-DNS configuration |
+| `kustomization.yaml` | Application resources and generated Alloy ConfigMap |
+| `Makefile` | Build, test and publish rsyslog 1.0.15 |
+| `.circleci/config.yml` | Tested image publication from main |
+| `tests/test_rotation.py` | Archive retention and rotation failure regression tests |
+| `tests/smoke.py` | Disposable Docker pipeline test with real rsyslog, Alloy and Loki |
 
-## Container Images
+## Runtime
 
-| Image | Version | Registry | Purpose |
-|-------|---------|----------|---------|
-| `ninjatec/rsyslog` | 1.0.13 | DockerHub | RSyslog daemon container |
+| Resource | Value |
+| --- | --- |
+| Namespace | `monitoring` (must already exist) |
+| Deployment / Service | `rsyslog` |
+| rsyslog image | `ninjatec/rsyslog:1.0.15` |
+| Alloy image | `grafana/alloy:v1.22.0` |
+| External endpoint | `rsyslog.lab.local`, `192.168.0.141`, TCP/UDP 514 |
+| Loki endpoint | `http://grafana-loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push` |
+| Active log | `/mnt/rsyslog/syslog.jsonl` in rsyslog, `/var/log/remote/syslog.jsonl` in Alloy |
+| Archives | Five files of approximately 100MiB each; manual replay if unread across a restart |
+| Reader state | `/var/lib/alloy`, backed by the volume's `alloy` directory |
+| Storage | Existing `rsyslog-pv-claim`; provision and manage according to deployment needs |
+| Rollout strategy | `Recreate` |
+| Alloy HTTP | Pod port 12345: UI, metrics, readiness and health |
 
-## Kubernetes Resources
+## GitOps
 
-### Namespace: `monitoring`
+`clusters/my-cluster/kustomization.yaml` includes the generated Flux bootstrap and a `syslogtoloki` Flux Kustomization targeting the repository root. Generated Flux controller definitions are unchanged.
 
-| Resource Type | Name | Purpose |
-|---------------|------|---------|
-| Deployment | `rsyslog` | RSyslog daemon container |
-| Service | `rsyslog` | LoadBalancer for syslog ingress |
-| PersistentVolumeClaim | `rsyslog-pv-claim` | Log storage (10GB) |
-| ConfigMap | `grafana-agent-logs` | Grafana Agent configuration |
+The separate `image-policy.yaml` and `image-update.yaml` examples are excluded from the application Kustomization. There is no active image-update automation or SOPS configuration in the application manifests.
 
-### Namespace: `flux-system`
+## Delivery limits
 
-| Resource Type | Name | Purpose |
-|---------------|------|---------|
-| Kustomization | `rsyslog` | Flux deployment automation |
-| ImagePolicy | `rsyslog` | Image version policy |
-| ImageUpdateAutomation | `rsyslog` | Auto-update configuration |
-
-## Network Configuration
-
-| Service | Type | Ports | External IP |
-|---------|------|-------|-------------|
-| rsyslog | LoadBalancer | 514/TCP, 514/UDP | 192.168.0.141 |
-
-## Storage
-
-| PVC Name | Size | Storage Class | Mount Path |
-|----------|------|---------------|------------|
-| rsyslog-pv-claim | 10Gi | default-retain | /mnt/rsyslog |
-
-## CI/CD Pipeline
-
-### CircleCI Workflow
-- **Trigger**: Commits to `main` branch
-- **Executor**: `ubuntu-2204:2024.11.1` (medium resource class)
-- **Steps**:
-  1. Docker login using `DOCKER_USER` and `DOCKER_PASS`
-  2. Build image using `make build`
-  3. Publish image using `make publish`
-
-### Flux GitOps
-- **Source**: Git repository
-- **Sync Interval**: 1 minute
-- **Image Update**: 5 minutes
-- **Decryption**: SOPS with GPG key
-- **Auto-commit**: Enabled for image updates
-
-## Configuration Details
-
-### RSyslog Configuration
-- **Modules**: `imudp`, `imtcp`
-- **Ports**: 514 (TCP/UDP)
-- **Log File**: `/mnt/rsyslog/rsyslog.log`
-- **Rotation**: 7.5MB threshold
-- **Template**: `RemoteStore` for external logs
-
-### Grafana Agent
-- **Log Source**: `/var/log/{syslog,messages,*.log}`
-- **Loki Endpoint**: `http://grafana-loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push`
-- **Job Name**: `varlogs`
-- **Position File**: `/tmp/positions.yaml`
-
-### Resource Limits
-- **CPU Limit**: 400m
-- **Memory Limit**: 1000Mi
-- **CPU Request**: 50m
-- **Memory Request**: 10Mi
-
-## Dependencies
-
-### External Services
-- Grafana Loki (monitoring namespace)
-- Kubernetes cluster with Flux v2
-- DockerHub registry access
-
-### Build Dependencies
-- Docker with BuildKit
-- Make
-- Git
-
-## Security
-
-### Image Policy
-- **Semver Range**: `>=1.0.0`
-- **Pattern**: `^(?P<semversion>\d+.\d+.\d+)(-.*)? `
-- **Auto-update**: Enabled for patch versions
-
-### SOPS Encryption
-- **Provider**: GPG
-- **Secret**: `sops-gpg` (flux-system namespace)
-
-## Monitoring & Observability
-
-### Logs
-- RSyslog container logs available via `kubectl logs`
-- Application logs forwarded to Loki
-- Grafana Agent metrics on port 12345
-
-### Health Checks
-- Container liveness: RSyslog process
-- Service readiness: Port 514 availability
-- Storage: PVC mount status
-
-## Version History
-
-| Version | Changes |
-|---------|---------|
-| 1.0.13 | Current stable version |
-
-## Contact & Support
-
-- **Git Repository**: Main branch for production deployments
-- **Docker Registry**: `ninjatec/rsyslog`
-- **Flux Automation**: `flux@ninjatec.co.uk`
+The JSON file retains full message text and process IDs. Loki indexes hostname, application, facility and severity alongside the existing `varlogs` job label. Read positions persist, but they track reading rather than acknowledged Loki delivery. UDP, exhausted Loki retries, retention expiry and receiver downtime can lose logs. See `README.md` for cutover, verification and recovery limits.

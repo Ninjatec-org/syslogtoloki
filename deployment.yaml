@@ -4,7 +4,7 @@ metadata:
   name: rsyslog-pv-claim
   namespace: monitoring
 spec:
-  storageClassName: longhorn
+  storageClassName: truenas-ssd-nfs
   accessModes:
     - ReadWriteOnce
   resources:
@@ -20,6 +20,8 @@ metadata:
     app: rsyslog
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: rsyslog
@@ -30,7 +32,7 @@ spec:
     spec:
       containers:
       - name: rsyslog
-        image: ninjatec/rsyslog:1.0.14 # {"$imagepolicy": "flux-system:rsyslog"}
+        image: ninjatec/rsyslog:1.0.15 # {"$imagepolicy": "flux-system:rsyslog"}
         ports:
         - name: udp
           containerPort: 514
@@ -38,6 +40,10 @@ spec:
         - name: tcp
           containerPort: 514
           protocol: TCP
+        readinessProbe:
+          tcpSocket:
+            port: tcp
+          periodSeconds: 5
         resources:
           limits:
             cpu: 400m
@@ -48,18 +54,42 @@ spec:
         volumeMounts:
         - name: rsyslog-pv-claim
           mountPath: "/mnt/rsyslog"
-      - name: grafana-agent
-        image: grafana/agent:latest
+      - name: alloy
+        image: grafana/alloy:v1.22.0
+        args:
+        - run
+        - --server.http.listen-addr=0.0.0.0:12345
+        - --storage.path=/var/lib/alloy
+        - /etc/alloy/config.alloy
+        ports:
+        - name: alloy-http
+          containerPort: 12345
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: alloy-http
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: alloy-http
+          initialDelaySeconds: 15
         resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
           limits:
             cpu: 400m
             memory: 1000Mi
         volumeMounts:
         - name: rsyslog-pv-claim
-          mountPath: "/var/log"
+          mountPath: /var/log/remote
+          readOnly: true
+        - name: rsyslog-pv-claim
+          mountPath: /var/lib/alloy
+          subPath: alloy
         - name: config-volume
-          mountPath: "/etc/agent/agent.yaml"
-          subPath: agent.yaml
+          mountPath: /etc/alloy
+          readOnly: true
       restartPolicy: Always
       volumes:
       - name: rsyslog-pv-claim
@@ -67,4 +97,4 @@ spec:
           claimName: rsyslog-pv-claim
       - name: config-volume
         configMap:
-          name: grafana-agent-logs
+          name: syslog-alloy
