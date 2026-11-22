@@ -113,6 +113,15 @@ def main():
         wait_for(lambda: len(records()) == 2)
         written = [json.loads(line) for line in (shared / "syslog.jsonl").read_text().splitlines()]
         assert sum(token in record["message"] for record in written) == 2, "Duplicate file writes"
+
+        def streamed_records():
+            return [json.loads(line) for line in docker("logs", receiver).splitlines() if token in line]
+
+        wait_for(lambda: len(streamed_records()) == 2)
+        assert sorted(streamed_records(), key=lambda record: record["message"]) == sorted(
+            [record for record in written if token in record["message"]],
+            key=lambda record: record["message"],
+        ), "Container stdout must match the syslog file"
         for labels, record in records():
             is_tcp = "-tcp" in record["message"]
             assert labels["hostname"] == ("linux-node" if is_tcp else "switch-01")
@@ -135,7 +144,7 @@ def main():
         reads = sum(float(line.rsplit(" ", 1)[1]) for line in metrics.splitlines()
                     if line.startswith("loki_source_file_read_lines_total{"))
         assert reads == 1, f"Alloy reread old records after restart: {reads} lines"
-        print("TCP/RFC5424, UDP/RFC3164, labels, JSON and persistent read positions passed")
+        print("TCP/RFC5424, UDP/RFC3164, labels, JSON, stdout and persistent read positions passed")
     except BaseException:
         for name in containers:
             subprocess.run(["docker", "logs", "--tail", "40", name], check=False)

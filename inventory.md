@@ -5,13 +5,13 @@
 | File | Purpose |
 | --- | --- |
 | `Dockerfile` | Ubuntu 24.04 image containing rsyslog |
-| `rsyslog.conf` | TCP/UDP 514 inputs, JSON template, single file output and size-based rotation |
+| `rsyslog.conf` | TCP/UDP 514 inputs, JSON file and stdout outputs, and size-based rotation |
 | `log_rotation.sh` | Rename active logs and retain five archives |
 | `config.alloy` | File reader, JSON processing, event labels and Loki writer |
 | `deployment.yaml` | Single rsyslog/Alloy pod and the existing PVC definition |
 | `service.yaml` | External syslog LoadBalancer and Cilium/external-DNS configuration |
 | `kustomization.yaml` | Application resources and generated Alloy ConfigMap |
-| `Makefile` | Build, test and publish rsyslog 1.0.15 |
+| `Makefile` | Build, test and publish rsyslog 1.0.16 |
 | `.github/workflows/build.yml` | Build and test pull requests; tested Docker Hub publication from main |
 | `tests/test_rotation.py` | Archive retention and rotation failure regression tests |
 | `tests/smoke.py` | Disposable Docker pipeline test with real rsyslog, Alloy and Loki |
@@ -22,7 +22,7 @@
 | --- | --- |
 | Namespace | `monitoring` (must already exist) |
 | Deployment / Service | `rsyslog` |
-| rsyslog image | `ninjatec/rsyslog:1.0.15` |
+| rsyslog image | `ninjatec/rsyslog:1.0.16` |
 | Alloy image | `grafana/alloy:v1.22.0` |
 | External endpoint | `rsyslog.lab.local`, `192.168.0.141`, TCP/UDP 514 |
 | Loki endpoint | `http://grafana-loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push` |

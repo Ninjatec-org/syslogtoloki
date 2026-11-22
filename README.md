@@ -8,6 +8,7 @@ External senders → LoadBalancer TCP/UDP 514 → rsyslog → JSON log file → 
 
 - The `rsyslog` Service keeps the external address `192.168.0.141` and DNS name `rsyslog.lab.local`. Adjust these in `service.yaml` for your network.
 - rsyslog accepts RFC3164 and RFC5424 syslog over TCP or UDP. It normalizes records into `/mnt/rsyslog/syslog.jsonl` using an escaped JSON template.
+- Each new JSON record is also written to the rsyslog container's stdout, so incoming syslog is available through pod logs. Historical files are not replayed into stdout.
 - Alloy v1.22.0 tails that file and sends it to `http://grafana-loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push`.
 - Loki labels are `job="varlogs"`, `hostname`, `appname`, `facility`, and `severity`. Process IDs remain in the JSON body rather than becoming stream labels. The file source also adds a `filename` label.
 - Alloy stores read positions under `/var/lib/alloy`, mounted from the existing shared volume's `alloy` directory.
@@ -27,7 +28,7 @@ make publish
 kubectl apply -k .
 ```
 
-`make publish` builds `ninjatec/rsyslog:1.0.15`, runs the rotation tests and the Docker pipeline smoke test, then pushes the image. Use `make test` to build and test without pushing. The smoke test starts disposable rsyslog, Alloy and Loki containers on an isolated Docker network, sends TCP/RFC5424 and UDP/RFC3164 messages, checks Loki labels and JSON, then verifies read-position persistence after an Alloy restart.
+`make publish` builds `ninjatec/rsyslog:1.0.16`, runs the rotation tests and the Docker pipeline smoke test, then pushes the image. Use `make test` to build and test without pushing. The smoke test starts disposable rsyslog, Alloy and Loki containers on an isolated Docker network, sends TCP/RFC5424 and UDP/RFC3164 messages, checks Loki labels and JSON, verifies matching container stdout, then verifies read-position persistence after an Alloy restart.
 
 GitHub Actions runs `make test` on pull requests targeting `main` and `make publish` on pushes to `main`. Both run the same build and pipeline checks; only pushes authenticate to Docker Hub and publish. The workflow is `.github/workflows/build.yml`.
 
@@ -72,7 +73,7 @@ Query `{job="varlogs"} |= "syslog-to-loki"` in Grafana. Confirm the expected hos
 
 ```sh
 kubectl get pods,svc -n monitoring -l app=rsyslog
-kubectl logs -n monitoring deployment/rsyslog -c rsyslog
+kubectl logs -f -n monitoring deployment/rsyslog -c rsyslog
 kubectl logs -n monitoring deployment/rsyslog -c alloy
 kubectl rollout status -n monitoring deployment/rsyslog
 ```
